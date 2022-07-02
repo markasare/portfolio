@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" charset="utf-8">
+    <title>Mark Asare</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="shortcut icon" href="logo.png">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  </head>
+  <body>
+    <nav class="navbar navbar-default navbar-inverse navbar-fixed-top">
+
+      <!-- Inside of a Container -->
+      <div class="container-fluid">
+
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <!-- This is the actual code that create the "hamburger icon" -->
+        <!-- The data-target grabs ids to put into the icon -->
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+
+            <!--  Code for the hamburger icon-->
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+
+          <a class="navbar-brand" href="index.html">Home</a>
+        </div>
+
+        <!-- Anything inside of collapse navbar-collapse goes into the "hamburger" -->
+        <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+          <ul class="nav navbar-nav navbar-right">
+            <li ><a href="#">Projects<span class="sr-only">(current)</span></a></li>
+            <li><a href="#">About Me</a></li>
+            <li><a href="#">Software skills</a></li>
+            <li><a href="#">Services</a></li>
+            <!-- <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Curriculum Vitae<span class="caret"></span></a>
+              <ul class="dropdown-menu">
+                <li><a href="#">HTML Format</a></li>
+                <li><a href="http://www.google.com">PDF Format</a></li>
+                <li><a href="#"></a></li>
+
+                <!-- Use this to separate a new link -->
+
+                <!-- <li role="separator" class="divider"></li> -->
+                <!-- <li><a href="#">Separated link</a></li> -->
+              </ul>
+
+
+        </div><!-- /.navbar-collapse -->
+      </div><!-- /.container-fluid -->
+    </nav>
+
+
+    <div class="hero">
+      <nav>
+        <a href="#"><img src="logo.png" width="70" height="70" alt=""></a>
+
+      </nav>
+
+      <div class="text-box">
+
+        <h1>Hi, welcome to my website!</h1>
+        <h1>I'm <span class="auto-text"></span></h1>
+        <p>Feel free to reach out to me for your one-stop Data Science solutions.</p>
+        <a href="#" class="btn">Contact me</a>
+        <a href="MarkAsareCV.pdf" class="btn">View CV</a>
+      </div>
+    </div>
+
+    <footer>
+    <ul class="navbar nav" style="display: flex; align-items: center; justify-content: center; width:100%;">
+      <li><a href="https://www.github.com/markasare/" class="fa fa-github"></a></li>
+      <li><a href="https://www.linkedin.com/in/markasare" class="fa fa-linkedin"></a></li>
+      <li><a href="https://www.instagram.com/kojoponk" class="fa fa-instagram"></a></li>
+      <li><a href="https://www.facebook.com/kojoponq" class="fa fa-facebook"></a></li>
+      <li><a href="https://twitter.com/siabanku" class="fa fa-twitter"></a></li>
+
+    </ul>
+  </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
+    <script>
+      var typed = new Typed(".auto-text", {
+        strings: ["Mark Asare", "an ML Engineer", "a Data Scientist", "an NLP Engineer"],
+        typeSpeed: 95,
+        backSpeed: 93,
+        loop: true
+      })
+    </script>
+  </body>
+</html>
