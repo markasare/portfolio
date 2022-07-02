@@ -81,7 +81,9 @@ nav ul li a:hover{
   margin-bottom: 40px;
 }
 
-
+#greeting{
+  font-family: 'Pacifico', cursive;
+}
 
 span{
   color: #fff724;
