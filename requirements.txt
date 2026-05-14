@@ -1,0 +1,5 @@
+Flask==2.3.3
+Flask-Mail==0.9.1
+python-decouple==3.8
+boto3==1.35.99
+aws-wsgi==0.2.7

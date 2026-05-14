@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Mark Asare portfolio social card</title>
+  <desc id="desc">Machine learning, AI, full-stack, AWS, Azure, and MLOps portfolio of Mark Asare.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#04121d"/>
+      <stop offset="55%" stop-color="#0d2233"/>
+      <stop offset="100%" stop-color="#132f28"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#42d392"/>
+      <stop offset="50%" stop-color="#46c2ff"/>
+      <stop offset="100%" stop-color="#ff9d66"/>
+    </linearGradient>
+    <filter id="blur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="40"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="180" cy="118" r="120" fill="#46c2ff" opacity="0.18" filter="url(#blur)"/>
+  <circle cx="1010" cy="490" r="160" fill="#42d392" opacity="0.16" filter="url(#blur)"/>
+  <circle cx="890" cy="122" r="100" fill="#ff9d66" opacity="0.14" filter="url(#blur)"/>
+
+  <rect x="70" y="70" width="1060" height="490" rx="34" fill="rgba(11,25,38,0.72)" stroke="rgba(255,255,255,0.16)"/>
+  <rect x="70" y="70" width="1060" height="8" rx="4" fill="url(#accent)"/>
+
+  <text x="110" y="160" fill="#89f0c2" font-family="Inter, Arial, sans-serif" font-size="26" letter-spacing="3">MARK ASARE</text>
+  <text x="110" y="250" fill="#f5f7fb" font-family="Georgia, 'Times New Roman', serif" font-size="72" font-weight="700">ML Engineer. AI Builder.</text>
+  <text x="110" y="328" fill="#f5f7fb" font-family="Georgia, 'Times New Roman', serif" font-size="72" font-weight="700">Full-Stack on AWS and Azure.</text>
+
+  <text x="110" y="405" fill="#c9d5e2" font-family="Inter, Arial, sans-serif" font-size="30">Production ML systems, MLOps, cloud delivery, and product-minded engineering.</text>
+
+  <g font-family="Inter, Arial, sans-serif" font-size="24">
+    <rect x="110" y="462" width="140" height="46" rx="23" fill="rgba(66,211,146,0.12)" stroke="rgba(66,211,146,0.45)"/>
+    <text x="145" y="492" fill="#d9fff0">MLOps</text>
+
+    <rect x="270" y="462" width="124" height="46" rx="23" fill="rgba(70,194,255,0.12)" stroke="rgba(70,194,255,0.45)"/>
+    <text x="307" y="492" fill="#def5ff">AWS</text>
+
+    <rect x="414" y="462" width="132" height="46" rx="23" fill="rgba(255,157,102,0.12)" stroke="rgba(255,157,102,0.45)"/>
+    <text x="447" y="492" fill="#fff0e8">Azure</text>
+
+    <rect x="566" y="462" width="200" height="46" rx="23" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.18)"/>
+    <text x="604" y="492" fill="#eef3f8">Full-Stack</text>
+  </g>
+
+  <text x="110" y="548" fill="#9fb1c2" font-family="Inter, Arial, sans-serif" font-size="26">markasare.com</text>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="90" fill="#121212" />
+  <g stroke="#03dac6" stroke-width="2">
+    <line x1="70" y1="60" x2="100" y2="100" opacity="0.6" />
+    <line x1="130" y1="60" x2="100" y2="100" opacity="0.6" />
+    <line x1="70" y1="140" x2="100" y2="100" opacity="0.6" />
+    <line x1="130" y1="140" x2="100" y2="100" opacity="0.6" />
+    <circle cx="70" cy="60" r="8" fill="#6200ea" />
+    <circle cx="130" cy="60" r="8" fill="#6200ea" />
+    <circle cx="100" cy="100" r="12" fill="#03dac6" />
+    <circle cx="70" cy="140" r="8" fill="#6200ea" />
+    <circle cx="130" cy="140" r="8" fill="#6200ea" />
+  </g>
+  <g fill="#ffffff" font-family="Arial, sans-serif" font-weight="bold">
+    <text x="100" y="103" text-anchor="middle" font-size="24">MA</text>
+  </g>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#03dac6" stroke-width="3" opacity="0.3" />
+  <g fill="#6200ea" opacity="0.5">
+    <circle cx="60" cy="80" r="2" />
+    <circle cx="140" cy="80" r="2" />
+    <circle cx="90" cy="150" r="2" />
+    <circle cx="110" cy="150" r="2" />
+    <circle cx="75" cy="110" r="2" />
+    <circle cx="125" cy="110" r="2" />
+  </g>
+</svg>
