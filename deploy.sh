@@ -23,7 +23,7 @@ cp "$ROOT_DIR/app.py" "$ROOT_DIR/config.py" "$ROOT_DIR/notifications.py" "$ROOT_
 cp -R "$ROOT_DIR/assets" "$ROOT_DIR/templates" "$BUILD_DIR/"
 
 # These local source videos are not used by the live app and inflate the Lambda zip.
-rm -f "$BUILD_DIR/assets/GYM_hero.mp4" "$BUILD_DIR/assets/workout.mp4"
+rm -f "$BUILD_DIR/assets/GYM_hero.mp4" "$BUILD_DIR/assets/workout.mp4" "$BUILD_DIR/assets/workout-web.mp4" "$BUILD_DIR/assets/workout-web-10s.mp4"
 
 (
   cd "$BUILD_DIR"

@@ -471,11 +471,13 @@
     if (canvas.getBoundingClientRect().top < window.innerHeight) tick();
   }, { passive: true });
 
-  // Video loop limit (10s)
+}());
+
+(function () {
   var videoEl = document.getElementById('video-duration-limit');
-  if (videoEl) {
-    videoEl.addEventListener('timeupdate', function () {
-      if (this.currentTime > 10) { this.currentTime = 0; this.play(); }
-    });
-  }
+  if (!videoEl) return;
+
+  videoEl.addEventListener('timeupdate', function () {
+    if (this.currentTime > 10) { this.currentTime = 0; this.play(); }
+  });
 }());

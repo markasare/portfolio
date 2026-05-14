@@ -11,7 +11,7 @@ class Config:
 
     EMAIL_PROVIDER = config("EMAIL_PROVIDER", default="ses")
     EMAIL_FROM = config("EMAIL_FROM", default="no-reply@markasare.com")
-    CONTACT_OWNER_EMAIL = config("CONTACT_OWNER_EMAIL", default="")
+    CONTACT_OWNER_EMAIL = config("CONTACT_OWNER_EMAIL", default=config("SUPPORT_EMAIL", default=""))
     SUPPORT_EMAIL = config("SUPPORT_EMAIL", default=CONTACT_OWNER_EMAIL)
     ENABLE_AUTO_REPLY = config("ENABLE_AUTO_REPLY", default=True, cast=bool)
 

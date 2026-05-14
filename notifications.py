@@ -125,10 +125,10 @@ def _email_shell(eyebrow, title, intro, body_html, note_html=None):
 
 
 def send_contact_emails(name, sender, message):
-    owner_email = current_app.config.get("CONTACT_OWNER_EMAIL")
+    owner_email = current_app.config.get("CONTACT_OWNER_EMAIL") or current_app.config.get("SUPPORT_EMAIL")
     auto_reply_enabled = current_app.config.get("ENABLE_AUTO_REPLY", True)
-    if not owner_email and not auto_reply_enabled:
-        raise RuntimeError("Set CONTACT_OWNER_EMAIL or enable auto replies.")
+    if not owner_email:
+        raise RuntimeError("Set CONTACT_OWNER_EMAIL or SUPPORT_EMAIL before accepting contact form submissions.")
 
     safe_name = escape(name)
     safe_sender = escape(sender)
