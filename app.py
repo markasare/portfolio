@@ -1,7 +1,7 @@
 import os
 import re
 
-from flask import Flask, Response, abort, jsonify, request, send_from_directory
+from flask import Flask, Response, abort, jsonify, render_template, request, send_from_directory
 
 try:
     import awsgi
@@ -52,14 +52,14 @@ def create_app(config_name=None):
 
     @app.route("/")
     def index():
-        return send_from_directory(app.root_path, "index.html")
+        return render_template("index.html")
 
     @app.route("/<page>")
     def page(page):
         filename = PAGE_FILES.get(page)
         if not filename:
             abort(404)
-        return send_from_directory(app.root_path, filename)
+        return render_template(filename)
 
     @app.route("/assets/<path:filename>")
     def assets(filename):

@@ -246,7 +246,7 @@ button { font-family: inherit; cursor: pointer; border: 0; background: transpare
   margin-bottom: 16px;
   display: block;
   width: auto;
-  max-width: 24ch;
+  max-width: none;
   align-self: flex-start;
   overflow: hidden;
   font-family: 'Caveat', 'Brush Script MT', cursive;
@@ -255,6 +255,7 @@ button { font-family: inherit; cursor: pointer; border: 0; background: transpare
   font-weight: 700;
   letter-spacing: .01em;
   text-align: left;
+  white-space: nowrap;
   color: #ffd89a;
   text-shadow: 0 8px 24px rgba(0,0,0,.28);
 }
@@ -561,6 +562,10 @@ button { font-family: inherit; cursor: pointer; border: 0; background: transpare
   }
 
   .hero-name {
+    white-space: normal;
+  }
+
+  .hero-intro-line {
     white-space: normal;
   }
 }
