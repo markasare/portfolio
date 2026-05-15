@@ -1,0 +1,258 @@
+import hashlib
+import time
+import uuid
+
+from flask import current_app, jsonify, request
+
+try:
+    import boto3
+except ImportError:
+    boto3 = None
+
+
+def _as_int(value, default):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _hash_ip(remote_addr):
+    if not remote_addr:
+        return ""
+    return hashlib.sha256(remote_addr.encode("utf-8")).hexdigest()
+
+
+def _normalize_country_code(value):
+    country_code = (value or "").strip().upper()
+    if len(country_code) != 2 or not country_code.isalpha():
+        return "UNKNOWN"
+    return country_code
+
+
+def _country_name_from_headers():
+    label = (
+        request.headers.get("CloudFront-Viewer-Country-Name")
+        or request.headers.get("X-Country-Name")
+        or request.headers.get("CF-IPCountry")
+        or ""
+    ).strip()
+    return label[:80] or None
+
+
+def _country_code_from_headers():
+    return _normalize_country_code(
+        request.headers.get("CloudFront-Viewer-Country")
+        or request.headers.get("X-Country-Code")
+        or request.headers.get("CF-IPCountry")
+    )
+
+
+class AnalyticsTracker:
+    def __init__(self, app=None):
+        self.app = None
+        self.table = None
+        self.enabled = False
+
+        if app is not None:
+            self.init_app(app)
+
+    def init_app(self, app):
+        self.app = app
+        self.enabled = False
+        self.table = None
+
+        table_name = (app.config.get("VISITOR_ANALYTICS_TABLE") or "").strip()
+        if not table_name or boto3 is None:
+            return self
+
+        dynamodb = boto3.resource(
+            "dynamodb",
+            region_name=app.config.get("ANALYTICS_AWS_REGION", "us-west-2"),
+            aws_access_key_id=app.config.get("AWS_ACCESS_KEY_ID") or None,
+            aws_secret_access_key=app.config.get("AWS_SECRET_ACCESS_KEY") or None,
+            aws_session_token=app.config.get("AWS_SESSION_TOKEN") or None,
+        )
+        self.table = dynamodb.Table(table_name)
+        self.enabled = True
+        return self
+
+    def is_enabled(self):
+        return self.enabled and self.table is not None
+
+    def should_track_request(self, response):
+        if not self.is_enabled():
+            return False
+        if request.method != "GET":
+            return False
+        if response.status_code >= 400:
+            return False
+        return request.endpoint in {"index", "page"}
+
+    def record_response(self, response):
+        if not self.should_track_request(response):
+            return response
+
+        cookie_name = current_app.config.get("ANALYTICS_COOKIE_NAME", "visitor_id")
+        visitor_id = (request.cookies.get(cookie_name) or "").strip()
+        needs_cookie = not visitor_id
+        if needs_cookie:
+            visitor_id = str(uuid.uuid4())
+
+        try:
+            self._record_visit(visitor_id)
+        except Exception as exc:
+            current_app.logger.warning("analytics tracking failed: %s", exc)
+            return response
+
+        if needs_cookie:
+            response.set_cookie(
+                cookie_name,
+                visitor_id,
+                max_age=current_app.config.get("ANALYTICS_COOKIE_MAX_AGE", 60 * 60 * 24 * 365 * 2),
+                secure=not current_app.config.get("DEBUG", False),
+                httponly=True,
+                samesite="Lax",
+            )
+
+        return response
+
+    def _record_visit(self, visitor_id):
+        now = int(time.time())
+        session_window = current_app.config.get("ANALYTICS_SESSION_WINDOW_SECONDS", 60 * 30)
+        path = request.path
+        user_agent = (request.headers.get("User-Agent") or "")[:250]
+        ip_hash = _hash_ip(request.headers.get("X-Forwarded-For", request.remote_addr or ""))
+        country_code = _country_code_from_headers()
+        country_name = _country_name_from_headers() or country_code
+        visitor_key = {"pk": f"VISITOR#{visitor_id}", "sk": "PROFILE"}
+
+        existing = self.table.get_item(Key=visitor_key, ConsistentRead=True).get("Item")
+        is_new_visitor = existing is None
+        last_seen_at = _as_int((existing or {}).get("last_seen_at"), 0)
+        is_new_session = is_new_visitor or now - last_seen_at > session_window
+
+        if is_new_visitor:
+            self.table.put_item(
+                Item={
+                    **visitor_key,
+                    "first_seen_at": now,
+                    "last_seen_at": now,
+                    "last_path": path,
+                    "user_agent": user_agent,
+                    "ip_hash": ip_hash,
+                    "country_code": country_code,
+                    "country_name": country_name,
+                    "total_pageviews": 1,
+                    "total_sessions": 1,
+                }
+            )
+        else:
+            self.table.update_item(
+                Key=visitor_key,
+                UpdateExpression=(
+                    "SET last_seen_at = :now, last_path = :path, user_agent = :user_agent, ip_hash = :ip_hash, "
+                    "country_code = :country_code, country_name = :country_name "
+                    "ADD total_pageviews :pageviews, total_sessions :sessions"
+                ),
+                ExpressionAttributeValues={
+                    ":now": now,
+                    ":path": path,
+                    ":user_agent": user_agent,
+                    ":ip_hash": ip_hash,
+                    ":country_code": country_code,
+                    ":country_name": country_name,
+                    ":pageviews": 1,
+                    ":sessions": 1 if is_new_session else 0,
+                },
+            )
+
+        self.table.update_item(
+            Key={"pk": "METRICS", "sk": "TOTAL"},
+            UpdateExpression=(
+                "SET updated_at = :now "
+                "ADD total_pageviews :pageviews, unique_visitors :visitors, total_sessions :sessions"
+            ),
+            ExpressionAttributeValues={
+                ":now": now,
+                ":pageviews": 1,
+                ":visitors": 1 if is_new_visitor else 0,
+                ":sessions": 1 if is_new_session else 0,
+            },
+        )
+
+        self.table.update_item(
+            Key={"pk": f"COUNTRY#{country_code}", "sk": "TOTAL"},
+            UpdateExpression=(
+                "SET country_code = :country_code, country_name = :country_name, updated_at = :now "
+                "ADD total_pageviews :pageviews, unique_visitors :visitors, total_sessions :sessions"
+            ),
+            ExpressionAttributeValues={
+                ":country_code": country_code,
+                ":country_name": country_name,
+                ":now": now,
+                ":pageviews": 1,
+                ":visitors": 1 if is_new_visitor else 0,
+                ":sessions": 1 if is_new_session else 0,
+            },
+        )
+
+    def summary_data(self):
+        if not self.is_enabled():
+            return None
+
+        metrics = self.table.get_item(Key={"pk": "METRICS", "sk": "TOTAL"}).get("Item") or {}
+        scan_result = self.table.scan(
+            FilterExpression="begins_with(pk, :country_prefix) AND sk = :total_key",
+            ExpressionAttributeValues={":country_prefix": "COUNTRY#", ":total_key": "TOTAL"},
+        )
+        country_rows = scan_result.get("Items", [])
+        while "LastEvaluatedKey" in scan_result:
+            scan_result = self.table.scan(
+                FilterExpression="begins_with(pk, :country_prefix) AND sk = :total_key",
+                ExpressionAttributeValues={":country_prefix": "COUNTRY#", ":total_key": "TOTAL"},
+                ExclusiveStartKey=scan_result["LastEvaluatedKey"],
+            )
+            country_rows.extend(scan_result.get("Items", []))
+
+        countries = [
+            {
+                "country_code": item.get("country_code") or item.get("pk", "COUNTRY#UNKNOWN").replace("COUNTRY#", "", 1),
+                "country_name": item.get("country_name") or item.get("country_code") or "UNKNOWN",
+                "unique_visitors": _as_int(item.get("unique_visitors"), 0),
+                "total_sessions": _as_int(item.get("total_sessions"), 0),
+                "total_pageviews": _as_int(item.get("total_pageviews"), 0),
+                "updated_at": _as_int(item.get("updated_at"), 0),
+            }
+            for item in country_rows
+        ]
+        countries.sort(key=lambda item: (-item["unique_visitors"], -item["total_pageviews"], item["country_code"]))
+
+        return {
+            "unique_visitors": _as_int(metrics.get("unique_visitors"), 0),
+            "total_sessions": _as_int(metrics.get("total_sessions"), 0),
+            "total_pageviews": _as_int(metrics.get("total_pageviews"), 0),
+            "updated_at": _as_int(metrics.get("updated_at"), 0),
+            "session_window_seconds": current_app.config.get("ANALYTICS_SESSION_WINDOW_SECONDS", 60 * 30),
+            "countries": countries,
+        }
+
+    def summary_response(self):
+        if not self.is_enabled():
+            return jsonify({"message": "Analytics is not configured."}), 404
+
+        token = (current_app.config.get("ANALYTICS_READ_TOKEN") or "").strip()
+        if token:
+            provided = (request.headers.get("X-Analytics-Token") or request.args.get("token") or "").strip()
+            if provided != token:
+                return jsonify({"message": "Forbidden."}), 403
+
+        return jsonify(self.summary_data())
+
+
+analytics_tracker = AnalyticsTracker()
+
+
+def init_analytics(app):
+    analytics_tracker.init_app(app)
+    return analytics_tracker

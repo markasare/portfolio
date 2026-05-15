@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import datetime, timezone
 
 from flask import Flask, Response, abort, jsonify, render_template, request, send_from_directory
 
@@ -8,6 +9,7 @@ try:
 except ImportError:
     awsgi = None
 
+from analytics import init_analytics
 from config import config_dict
 from notifications import explain_delivery_error, init_notifications, send_contact_emails
 
@@ -34,6 +36,12 @@ def _page_url(base_url, slug):
     return f"{base_url}/{slug}"
 
 
+def _format_timestamp(epoch_seconds):
+    if not epoch_seconds:
+        return "No data yet"
+    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
 def create_app(config_name=None):
     if config_name is None:
         config_name = os.getenv("FLASK_ENV", "development")
@@ -41,6 +49,7 @@ def create_app(config_name=None):
     app = Flask(__name__)
     app.config.from_object(config_dict.get(config_name, config_dict["default"]))
     init_notifications(app)
+    analytics = init_analytics(app)
     base_url = _normalize_base_url(app.config.get("APP_BASE_URL", ""))
 
     @app.after_request
@@ -48,7 +57,7 @@ def create_app(config_name=None):
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
         response.headers["Access-Control-Allow-Methods"] = "OPTIONS,POST,GET"
-        return response
+        return analytics.record_response(response)
 
     @app.route("/")
     def index():
@@ -64,6 +73,13 @@ def create_app(config_name=None):
     @app.route("/assets/<path:filename>")
     def assets(filename):
         return send_from_directory(os.path.join(app.root_path, "assets"), filename)
+
+    @app.route("/admin")
+    def admin_dashboard():
+        summary = analytics.summary_data()
+        if summary is None:
+            return render_template("admin.html", analytics_enabled=False, summary=None, format_timestamp=_format_timestamp)
+        return render_template("admin.html", analytics_enabled=True, summary=summary, format_timestamp=_format_timestamp)
 
     @app.route("/robots.txt")
     def robots():
@@ -112,6 +128,10 @@ def create_app(config_name=None):
             return jsonify({"message": "Unable to send email.", "detail": explain_delivery_error(exc)}), 500
 
         return jsonify({"message": "Message accepted."})
+
+    @app.route("/api/analytics/summary")
+    def analytics_summary():
+        return analytics.summary_response()
 
     return app
 

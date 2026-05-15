@@ -19,7 +19,7 @@ mkdir -p "$BUILD_DIR"
 
 "$PYTHON_BIN" -m pip install -q -r "$ROOT_DIR/requirements.txt" -t "$BUILD_DIR"
 
-cp "$ROOT_DIR/app.py" "$ROOT_DIR/config.py" "$ROOT_DIR/notifications.py" "$ROOT_DIR/requirements.txt" "$BUILD_DIR/"
+cp "$ROOT_DIR/app.py" "$ROOT_DIR/analytics.py" "$ROOT_DIR/config.py" "$ROOT_DIR/notifications.py" "$ROOT_DIR/requirements.txt" "$BUILD_DIR/"
 cp -R "$ROOT_DIR/assets" "$ROOT_DIR/templates" "$BUILD_DIR/"
 
 # These local source videos are not used by the live app and inflate the Lambda zip.

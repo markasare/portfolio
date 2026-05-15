@@ -26,6 +26,13 @@ class Config:
     AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY", default="")
     AWS_SESSION_TOKEN = config("AWS_SESSION_TOKEN", default="")
 
+    VISITOR_ANALYTICS_TABLE = config("VISITOR_ANALYTICS_TABLE", default="")
+    ANALYTICS_AWS_REGION = config("ANALYTICS_AWS_REGION", default=config("AWS_REGION", default="us-west-2"))
+    ANALYTICS_COOKIE_NAME = config("ANALYTICS_COOKIE_NAME", default="visitor_id")
+    ANALYTICS_COOKIE_MAX_AGE = config("ANALYTICS_COOKIE_MAX_AGE", default=60 * 60 * 24 * 365 * 2, cast=int)
+    ANALYTICS_SESSION_WINDOW_SECONDS = config("ANALYTICS_SESSION_WINDOW_SECONDS", default=60 * 30, cast=int)
+    ANALYTICS_READ_TOKEN = config("ANALYTICS_READ_TOKEN", default="")
+
     APP_BASE_URL = config("APP_BASE_URL", default="https://markasare.com")
     INDEX_FILE = str(BASE_DIR / "index.html")
 
