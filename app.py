@@ -1,8 +1,9 @@
 import os
 import re
 from datetime import datetime, timezone
+from urllib.parse import urlsplit, urlunsplit
 
-from flask import Flask, Response, abort, jsonify, render_template, request, send_from_directory
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_from_directory
 
 try:
     import awsgi
@@ -24,6 +25,15 @@ PAGE_FILES = {
     "research": "research.html",
     "contact": "contact.html",
 }
+PAGE_SITEMAP_METADATA = {
+    "": {"lastmod": "2026-05-16", "changefreq": "weekly", "priority": "1.0"},
+    "about": {"lastmod": "2026-05-16", "changefreq": "monthly", "priority": "0.8"},
+    "experience": {"lastmod": "2026-05-16", "changefreq": "monthly", "priority": "0.9"},
+    "ml-ai-full-stack-engineer-aws-azure": {"lastmod": "2026-05-16", "changefreq": "weekly", "priority": "0.9"},
+    "projects": {"lastmod": "2026-05-16", "changefreq": "weekly", "priority": "0.9"},
+    "research": {"lastmod": "2026-05-16", "changefreq": "monthly", "priority": "0.7"},
+    "contact": {"lastmod": "2026-05-16", "changefreq": "monthly", "priority": "0.6"},
+}
 
 
 def _normalize_base_url(base_url):
@@ -34,6 +44,27 @@ def _page_url(base_url, slug):
     if not slug:
         return f"{base_url}/"
     return f"{base_url}/{slug}"
+
+
+def _preferred_host(base_url):
+    return urlsplit(base_url).netloc.lower()
+
+
+def _redirect_to_canonical_host(base_url):
+    preferred_parts = urlsplit(base_url)
+    preferred_host = _preferred_host(base_url)
+    if not preferred_host:
+        return None
+
+    request_host = (request.host or "").lower()
+    if request_host == preferred_host or not request_host:
+        return None
+
+    if request_host == f"www.{preferred_host}":
+        target = urlunsplit((preferred_parts.scheme or request.scheme, preferred_host, request.full_path.rstrip("?") or request.path, "", ""))
+        return redirect(target, code=301)
+
+    return None
 
 
 def _format_timestamp(epoch_seconds):
@@ -52,11 +83,26 @@ def create_app(config_name=None):
     analytics = init_analytics(app)
     base_url = _normalize_base_url(app.config.get("APP_BASE_URL", ""))
 
+    @app.before_request
+    def enforce_canonical_host():
+        redirect_response = _redirect_to_canonical_host(base_url)
+        if redirect_response is not None:
+            return redirect_response
+
     @app.after_request
     def add_cors_headers(response):
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
         response.headers["Access-Control-Allow-Methods"] = "OPTIONS,POST,GET"
+        if request.path.startswith("/assets/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif request.path in {"/robots.txt", "/sitemap.xml"}:
+            response.headers["Cache-Control"] = "public, max-age=3600"
+        elif request.path.startswith("/api/") or request.path == "/admin":
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        elif request.method == "GET" and response.status_code < 400:
+            response.headers["Cache-Control"] = "public, max-age=300, s-maxage=3600"
         return analytics.record_response(response)
 
     @app.route("/")
@@ -87,6 +133,7 @@ def create_app(config_name=None):
             [
                 "User-agent: *",
                 "Allow: /",
+                "Disallow: /admin",
                 f"Sitemap: {base_url}/sitemap.xml",
             ]
         )
@@ -94,14 +141,24 @@ def create_app(config_name=None):
 
     @app.route("/sitemap.xml")
     def sitemap():
-        urls = [_page_url(base_url, slug) for slug in PAGE_FILES]
         xml_lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
         ]
 
-        for url in urls:
-            xml_lines.extend(["  <url>", f"    <loc>{url}</loc>", "  </url>"])
+        for slug in PAGE_FILES:
+            url = _page_url(base_url, slug)
+            metadata = PAGE_SITEMAP_METADATA.get(slug, {})
+            xml_lines.extend(
+                [
+                    "  <url>",
+                    f"    <loc>{url}</loc>",
+                    f"    <lastmod>{metadata.get('lastmod', '2026-05-16')}</lastmod>",
+                    f"    <changefreq>{metadata.get('changefreq', 'monthly')}</changefreq>",
+                    f"    <priority>{metadata.get('priority', '0.7')}</priority>",
+                    "  </url>",
+                ]
+            )
 
         xml_lines.append("</urlset>")
         return Response("\n".join(xml_lines), mimetype="application/xml")
