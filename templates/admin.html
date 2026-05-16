@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>Analytics Admin | Mark Asare</title>
+<title>Analytics | Mark Asare</title>
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800;9..144,900&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-<link href="/assets/css/site.css?v=20260515a" rel="stylesheet">
+<link href="/assets/css/site.css?v=20260516a" rel="stylesheet">
 </head>
 <body>
 <nav id="nav">
@@ -26,7 +26,7 @@
 <main>
   <section class="page-hero admin-hero">
     <div class="page-hero-inner reveal visible">
-      <span class="eyebrow">Admin</span>
+      <span class="eyebrow">Analytics</span>
       <h1 class="page-title serif">Portfolio analytics.</h1>
       <p class="page-lead">A lightweight public dashboard for unique visitors, sessions, pageviews, and country-level traffic breakdown.</p>
       {% if analytics_enabled and summary %}
@@ -103,6 +103,67 @@
         </div>
         {% else %}
         <p class="admin-panel-note">No country data has been recorded yet.</p>
+        {% endif %}
+      </section>
+
+      <section class="admin-panel admin-panel-spaced">
+        <div class="admin-panel-head">
+          <div>
+            <span class="eyebrow">Diagnostics</span>
+            <h2 class="serif">Recent tracked visits.</h2>
+          </div>
+          <p>This shows the country values the edge forwarded for recent page requests.</p>
+        </div>
+
+        {% if summary.recent_visits %}
+        <div class="admin-table-wrap">
+          <table class="admin-table admin-table-diagnostics">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Path</th>
+                <th>Country</th>
+                <th>Edge headers</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for visit in summary.recent_visits %}
+              <tr>
+                <td>{{ format_timestamp(visit.visited_at) }}</td>
+                <td><span class="mono">{{ visit.path }}</span></td>
+                <td>
+                  <div class="admin-country-cell">
+                    <strong>{{ visit.country_name }}</strong>
+                    <span class="mono">{{ visit.country_code }}</span>
+                    <div class="admin-flag-row">
+                      {% if visit.is_new_visitor %}<span class="admin-flag-pill">new visitor</span>{% endif %}
+                      {% if visit.is_new_session %}<span class="admin-flag-pill admin-flag-pill-session">new session</span>{% endif %}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="admin-diagnostics-stack">
+                    {% if visit.cloudfront_country or visit.cloudfront_country_name %}
+                    <span class="admin-header-pill"><span class="mono">CloudFront</span> {{ visit.cloudfront_country or 'none' }}{% if visit.cloudfront_country_name %} · {{ visit.cloudfront_country_name }}{% endif %}</span>
+                    {% endif %}
+                    {% if visit.cf_ip_country %}
+                    <span class="admin-header-pill"><span class="mono">CF-IPCountry</span> {{ visit.cf_ip_country }}</span>
+                    {% endif %}
+                    {% if visit.x_country_code or visit.x_country_name %}
+                    <span class="admin-header-pill"><span class="mono">X-Country</span> {{ visit.x_country_code or 'none' }}{% if visit.x_country_name %} · {{ visit.x_country_name }}{% endif %}</span>
+                    {% endif %}
+                    {% if not visit.cloudfront_country and not visit.cloudfront_country_name and not visit.cf_ip_country and not visit.x_country_code and not visit.x_country_name %}
+                    <span class="admin-header-pill admin-header-pill-muted">No country headers</span>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="admin-panel-note">No recent visits have been recorded yet.</p>
         {% endif %}
       </section>
     </div>

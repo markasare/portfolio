@@ -6,8 +6,10 @@ from flask import current_app, jsonify, request
 
 try:
     import boto3
+    from boto3.dynamodb.conditions import Key
 except ImportError:
     boto3 = None
+    Key = None
 
 
 def _as_int(value, default):
@@ -23,6 +25,12 @@ def _hash_ip(remote_addr):
     return hashlib.sha256(remote_addr.encode("utf-8")).hexdigest()
 
 
+def _hash_visitor_id(visitor_id):
+    if not visitor_id:
+        return ""
+    return hashlib.sha256(visitor_id.encode("utf-8")).hexdigest()[:12]
+
+
 def _normalize_country_code(value):
     country_code = (value or "").strip().upper()
     if len(country_code) != 2 or not country_code.isalpha():
@@ -34,7 +42,6 @@ def _country_name_from_headers():
     label = (
         request.headers.get("CloudFront-Viewer-Country-Name")
         or request.headers.get("X-Country-Name")
-        or request.headers.get("CF-IPCountry")
         or ""
     ).strip()
     return label[:80] or None
@@ -46,6 +53,27 @@ def _country_code_from_headers():
         or request.headers.get("X-Country-Code")
         or request.headers.get("CF-IPCountry")
     )
+
+
+def _city_from_headers():
+    city = (
+        request.headers.get("CloudFront-Viewer-City")
+        or request.headers.get("X-City")
+        or ""
+    ).strip()
+    return city[:80] or None
+
+
+def _country_headers_snapshot():
+    return {
+        "cloudfront_city": (request.headers.get("CloudFront-Viewer-City") or "").strip()[:80],
+        "cloudfront_country": (request.headers.get("CloudFront-Viewer-Country") or "").strip()[:8],
+        "cloudfront_country_name": (request.headers.get("CloudFront-Viewer-Country-Name") or "").strip()[:80],
+        "cf_ip_country": (request.headers.get("CF-IPCountry") or "").strip()[:8],
+        "x_city": (request.headers.get("X-City") or "").strip()[:80],
+        "x_country_code": (request.headers.get("X-Country-Code") or "").strip()[:8],
+        "x_country_name": (request.headers.get("X-Country-Name") or "").strip()[:80],
+    }
 
 
 class AnalyticsTracker:
@@ -123,12 +151,17 @@ class AnalyticsTracker:
         path = request.path
         user_agent = (request.headers.get("User-Agent") or "")[:250]
         ip_hash = _hash_ip(request.headers.get("X-Forwarded-For", request.remote_addr or ""))
+        city = _city_from_headers()
         country_code = _country_code_from_headers()
         country_name = _country_name_from_headers() or country_code
+        country_headers = _country_headers_snapshot()
         visitor_key = {"pk": f"VISITOR#{visitor_id}", "sk": "PROFILE"}
+        visitor_country_key = {"pk": f"VISITOR#{visitor_id}", "sk": f"COUNTRY#{country_code}"}
 
         existing = self.table.get_item(Key=visitor_key, ConsistentRead=True).get("Item")
+        existing_country = self.table.get_item(Key=visitor_country_key, ConsistentRead=True).get("Item")
         is_new_visitor = existing is None
+        is_new_country_visitor = existing_country is None
         last_seen_at = _as_int((existing or {}).get("last_seen_at"), 0)
         is_new_session = is_new_visitor or now - last_seen_at > session_window
 
@@ -167,6 +200,29 @@ class AnalyticsTracker:
                 },
             )
 
+        if is_new_country_visitor:
+            self.table.put_item(
+                Item={
+                    **visitor_country_key,
+                    "first_seen_at": now,
+                    "last_seen_at": now,
+                    "country_code": country_code,
+                    "country_name": country_name,
+                }
+            )
+        else:
+            self.table.update_item(
+                Key=visitor_country_key,
+                UpdateExpression=(
+                    "SET last_seen_at = :now, country_code = :country_code, country_name = :country_name"
+                ),
+                ExpressionAttributeValues={
+                    ":now": now,
+                    ":country_code": country_code,
+                    ":country_name": country_name,
+                },
+            )
+
         self.table.update_item(
             Key={"pk": "METRICS", "sk": "TOTAL"},
             UpdateExpression=(
@@ -192,10 +248,78 @@ class AnalyticsTracker:
                 ":country_name": country_name,
                 ":now": now,
                 ":pageviews": 1,
-                ":visitors": 1 if is_new_visitor else 0,
+                ":visitors": 1 if is_new_country_visitor else 0,
                 ":sessions": 1 if is_new_session else 0,
             },
         )
+
+        self.table.put_item(
+            Item={
+                "pk": "VISIT",
+                "sk": f"{now:010d}#{uuid.uuid4().hex[:8]}",
+                "visited_at": now,
+                "visitor_hash": _hash_visitor_id(visitor_id),
+                "path": path,
+                "city": city or "",
+                "country_code": country_code,
+                "country_name": country_name,
+                "is_new_visitor": is_new_visitor,
+                "is_new_session": is_new_session,
+                **country_headers,
+            }
+        )
+
+    def _recent_visits(self, limit=5):
+        items = []
+
+        if Key is not None:
+            try:
+                response = self.table.query(
+                    KeyConditionExpression=Key("pk").eq("VISIT"),
+                    ScanIndexForward=False,
+                    Limit=limit,
+                )
+                items = response.get("Items", [])
+            except Exception:
+                items = []
+
+        if not items:
+            scan_result = self.table.scan(
+                FilterExpression="pk = :visit_pk",
+                ExpressionAttributeValues={":visit_pk": "VISIT"},
+            )
+            items = scan_result.get("Items", [])
+            while "LastEvaluatedKey" in scan_result:
+                scan_result = self.table.scan(
+                    FilterExpression="pk = :visit_pk",
+                    ExpressionAttributeValues={":visit_pk": "VISIT"},
+                    ExclusiveStartKey=scan_result["LastEvaluatedKey"],
+                )
+                items.extend(scan_result.get("Items", []))
+
+            items.sort(key=lambda item: item.get("sk") or "", reverse=True)
+            items = items[:limit]
+
+        return [
+            {
+                "visited_at": _as_int(item.get("visited_at"), 0),
+                "visitor_hash": item.get("visitor_hash") or "",
+                "path": item.get("path") or "",
+                "city": item.get("city") or "",
+                "country_code": item.get("country_code") or "UNKNOWN",
+                "country_name": item.get("country_name") or item.get("country_code") or "UNKNOWN",
+                "is_new_visitor": bool(item.get("is_new_visitor")),
+                "is_new_session": bool(item.get("is_new_session")),
+                "cloudfront_city": item.get("cloudfront_city") or "",
+                "cloudfront_country": item.get("cloudfront_country") or "",
+                "cloudfront_country_name": item.get("cloudfront_country_name") or "",
+                "cf_ip_country": item.get("cf_ip_country") or "",
+                "x_city": item.get("x_city") or "",
+                "x_country_code": item.get("x_country_code") or "",
+                "x_country_name": item.get("x_country_name") or "",
+            }
+            for item in items
+        ]
 
     def summary_data(self):
         if not self.is_enabled():
@@ -235,6 +359,7 @@ class AnalyticsTracker:
             "updated_at": _as_int(metrics.get("updated_at"), 0),
             "session_window_seconds": current_app.config.get("ANALYTICS_SESSION_WINDOW_SECONDS", 60 * 30),
             "countries": countries,
+            "recent_visits": self._recent_visits(limit=5),
         }
 
     def summary_response(self):

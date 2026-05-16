@@ -1921,6 +1921,10 @@ main { min-height: calc(100vh - 140px); }
   padding: 30px;
 }
 
+.admin-panel-spaced {
+  margin-top: 24px;
+}
+
 .admin-panel-head {
   display: flex;
   justify-content: space-between;
@@ -1975,6 +1979,10 @@ main { min-height: calc(100vh - 140px); }
   font-size: .95rem;
 }
 
+.admin-table-diagnostics td {
+  vertical-align: top;
+}
+
 .admin-table tbody tr:hover {
   background: rgba(6,214,255,.04);
 }
@@ -1987,6 +1995,48 @@ main { min-height: calc(100vh - 140px); }
 
 .admin-country-cell strong {
   color: var(--text-primary);
+}
+
+.admin-diagnostics-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-header-pill,
+.admin-flag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255,255,255,.05);
+  color: var(--text-secondary);
+  font-size: .8rem;
+}
+
+.admin-header-pill-muted {
+  color: var(--text-muted);
+}
+
+.admin-flag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-flag-pill {
+  background: rgba(16,185,129,.12);
+  border-color: rgba(16,185,129,.2);
+  color: #b8f3dd;
+}
+
+.admin-flag-pill-session {
+  background: rgba(6,214,255,.12);
+  border-color: rgba(6,214,255,.22);
+  color: #bdeefe;
 }
 
 .admin-empty-state {

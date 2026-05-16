@@ -98,7 +98,7 @@ def create_app(config_name=None):
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         elif request.path in {"/robots.txt", "/sitemap.xml"}:
             response.headers["Cache-Control"] = "public, max-age=3600"
-        elif request.path.startswith("/api/") or request.path == "/admin":
+        elif request.path.startswith("/api/") or request.path in {"/admin", "/analytics"}:
             response.headers["Cache-Control"] = "no-store"
             response.headers["X-Robots-Tag"] = "noindex, nofollow"
         elif request.method == "GET" and response.status_code < 400:
@@ -121,7 +121,11 @@ def create_app(config_name=None):
         return send_from_directory(os.path.join(app.root_path, "assets"), filename)
 
     @app.route("/admin")
-    def admin_dashboard():
+    def admin_dashboard_redirect():
+        return redirect("/analytics", code=301)
+
+    @app.route("/analytics")
+    def analytics_dashboard():
         summary = analytics.summary_data()
         if summary is None:
             return render_template("admin.html", analytics_enabled=False, summary=None, format_timestamp=_format_timestamp)
@@ -134,6 +138,7 @@ def create_app(config_name=None):
                 "User-agent: *",
                 "Allow: /",
                 "Disallow: /admin",
+                "Disallow: /analytics",
                 f"Sitemap: {base_url}/sitemap.xml",
             ]
         )
