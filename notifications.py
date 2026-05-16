@@ -91,6 +91,19 @@ def _format_message_html(message):
     return escape(message).replace("\n", "<br>")
 
 
+def _paragraph_block(*paragraphs):
+    parts = []
+    for paragraph in paragraphs:
+        if not paragraph:
+            continue
+        parts.append(
+            "<p style=\"margin:0 0 16px;font-size:16px;line-height:1.8;color:#b7c7db;\">"
+            f"{paragraph}"
+            "</p>"
+        )
+    return "".join(parts)
+
+
 def _email_shell(eyebrow, title, intro, body_html, note_html=None):
     note_section = ""
     if note_html:
@@ -112,7 +125,7 @@ def _email_shell(eyebrow, title, intro, body_html, note_html=None):
         f"<h1 style=\"margin:18px 0 0;font-size:36px;line-height:1.05;font-weight:800;font-family:Georgia,serif;color:#f4f9ff;\">{title}</h1>"
         "</div>"
         "<div style=\"padding:32px;background:linear-gradient(180deg,#0b1324 0%,#0a1120 100%);\">"
-        f"<p style=\"margin:0 0 22px;font-size:16px;line-height:1.8;color:#b7c7db;\">{intro}</p>"
+        f"{intro}"
         f"{body_html}"
         f"{note_section}"
         "<div style=\"margin-top:28px;padding-top:18px;border-top:1px solid rgba(148,163,184,0.12);\">"
@@ -145,7 +158,7 @@ def send_contact_emails(name, sender, message):
         owner_html = _email_shell(
             "Portfolio Contact",
             "New message received.",
-            "A new message just came in through your portfolio contact form.",
+            _paragraph_block("A new message just came in through your portfolio contact form."),
             (
                 "<div style=\"display:grid;gap:14px;\">"
                 "<div style=\"padding:18px;border-radius:18px;background:rgba(255,255,255,0.03);border:1px solid rgba(148,163,184,0.14);\">"
@@ -175,7 +188,10 @@ def send_contact_emails(name, sender, message):
         auto_html = _email_shell(
             "Message Received",
             "Thanks for reaching out.",
-            f"Hi {safe_name}, thanks for getting in touch. Your message has been received and will be attended to shortly.",
+            _paragraph_block(
+                f"Hi {safe_name},",
+                "Thanks for getting in touch. Your message has been received and will be attended to shortly.",
+            ),
             (
                 "<div style=\"padding:22px;border-radius:18px;background:linear-gradient(135deg,rgba(255,255,255,0.03) 0%,rgba(6,214,255,0.08) 100%);"
                 "border:1px solid rgba(6,214,255,0.14);\">"
