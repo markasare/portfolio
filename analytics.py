@@ -542,7 +542,14 @@ class AnalyticsTracker:
             for item in country_rows
         ]
         countries = _group_small_countries(countries, minimum_visitors=5)
-        countries.sort(key=lambda item: (-item["unique_visitors"], -item["total_pageviews"], item["country_code"]))
+        countries.sort(
+            key=lambda item: (
+                item["country_code"] == "OTHERS",
+                -item["unique_visitors"],
+                -item["total_pageviews"],
+                item["country_code"],
+            )
+        )
         visits = self._recent_visits(limit=5000)
         visit_summary = self._aggregate_visit_summaries(visits)
 
