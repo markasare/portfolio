@@ -1656,6 +1656,23 @@ section {
   box-shadow: 0 0 0 3px rgba(6,214,255,.15);
 }
 .form-group textarea { resize: vertical; min-height: 110px; }
+.contact-honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.contact-turnstile-wrap {
+  margin: 0 0 16px;
+  min-height: 66px;
+}
+.contact-form-note {
+  margin: 0 0 18px;
+  color: var(--text-dimmed);
+  font-size: .86rem;
+  line-height: 1.6;
+}
 
 .btn-contact {
   padding: 14px 30px; border-radius: var(--r-md);

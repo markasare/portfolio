@@ -20,7 +20,10 @@
 <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800;9..144,900&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-<link href="/assets/css/site.css?v=20260514f" rel="stylesheet">
+<link href="/assets/css/site.css?v=20260518b" rel="stylesheet">
+{% if contact_turnstile_site_key %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -58,7 +61,7 @@
       <span class="eyebrow">Contact</span>
       <h2 class="serif">Send a message.</h2>
       <p>Use the form below or reach out directly on LinkedIn or Instagram.</p>
-      <form class="contact-form" id="contact-form" data-api-endpoint="" method="POST">
+      <form class="contact-form" id="contact-form" data-api-endpoint="" data-turnstile-site-key="{{ contact_turnstile_site_key or '' }}" data-min-submit-seconds="{{ contact_min_submit_seconds or 3 }}" method="POST">
         <div class="form-group">
           <label for="name"><i class="fa-solid fa-user"></i> Name</label>
           <input type="text" id="name" name="name" placeholder="Your name" required>
@@ -71,6 +74,18 @@
           <label for="message"><i class="fa-solid fa-comment"></i> Message</label>
           <textarea id="message" name="message" rows="5" placeholder="What's on your mind?" required></textarea>
         </div>
+        <div class="contact-honeypot" aria-hidden="true">
+          <label for="website">Website</label>
+          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+        </div>
+        <input type="hidden" id="contact-started-at" name="startedAt" value="">
+        <input type="hidden" id="contact-turnstile-token" name="turnstileToken" value="">
+        {% if contact_turnstile_site_key %}
+        <div class="contact-turnstile-wrap">
+          <div class="cf-turnstile" data-sitekey="{{ contact_turnstile_site_key }}" data-response-field="false"></div>
+        </div>
+        {% endif %}
+        <p class="contact-form-note">This form uses anti-spam checks. Brief, low-signal, or automated submissions are rejected.</p>
         <button type="submit" class="btn-contact primary"><i class="fa-solid fa-paper-plane"></i> Send Message</button>
       </form>
       <p id="contact-form-status" aria-live="polite" style="margin-top:14px;color:var(--text-muted);font-size:.9rem;"></p>
@@ -98,6 +113,6 @@
   <a href="/contact" data-nav="contact"><i class="fa-solid fa-paper-plane"></i>Contact</a>
 </nav>
 
-<script src="/assets/js/site.js?v=20260514c"></script>
+<script src="/assets/js/site.js?v=20260518b"></script>
 </body>
 </html>

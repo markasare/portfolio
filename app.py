@@ -1,7 +1,11 @@
+import json
 import os
 import re
+import time
 from datetime import datetime, timezone
-from urllib.parse import urlsplit, urlunsplit
+from urllib.error import URLError
+from urllib.parse import urlencode, urlsplit, urlunsplit
+from urllib.request import Request, urlopen
 
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_from_directory
 
@@ -16,6 +20,7 @@ from notifications import explain_delivery_error, init_notifications, send_conta
 
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+VISIBLE_TEXT_PATTERN = re.compile(r"[A-Za-z]")
 PAGE_FILES = {
     "": "index.html",
     "about": "about.html",
@@ -73,6 +78,73 @@ def _format_timestamp(epoch_seconds):
     return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
+def _contact_template_context(app):
+    return {
+        "contact_turnstile_site_key": app.config.get("CONTACT_TURNSTILE_SITE_KEY", ""),
+        "contact_min_submit_seconds": app.config.get("CONTACT_MIN_SUBMIT_SECONDS", 3),
+    }
+
+
+def _single_run_too_long(value, threshold):
+    chunks = re.findall(r"[A-Za-z0-9]+", value or "")
+    return any(len(chunk) >= threshold for chunk in chunks)
+
+
+def _looks_like_spam_submission(name, message):
+    normalized_name = " ".join((name or "").split())
+    normalized_message = " ".join((message or "").split())
+    message_words = re.findall(r"[A-Za-z]{2,}", normalized_message)
+
+    if len(normalized_name) > 80 or len(normalized_message) > 4000:
+        return True
+    if len(normalized_name) < 2 or len(normalized_message) < 12:
+        return True
+    if not VISIBLE_TEXT_PATTERN.search(normalized_name) or not VISIBLE_TEXT_PATTERN.search(normalized_message):
+        return True
+    if " " not in normalized_message and _single_run_too_long(normalized_message, 20):
+        return True
+    if len(message_words) < 3 and _single_run_too_long(normalized_message, 16):
+        return True
+    if " " not in normalized_name and _single_run_too_long(normalized_name, 18):
+        return True
+    return False
+
+
+def _verify_turnstile(app, token):
+    secret_key = app.config.get("CONTACT_TURNSTILE_SECRET_KEY", "")
+    if not secret_key:
+        return True, None
+    if not token:
+        return False, "Complete the security check before sending your message."
+
+    payload = urlencode(
+        {
+            "secret": secret_key,
+            "response": token,
+            "remoteip": request.headers.get("X-Forwarded-For", request.remote_addr or ""),
+        }
+    ).encode("utf-8")
+    siteverify_request = Request(
+        "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+
+    try:
+        with urlopen(siteverify_request, timeout=5) as response:
+            verification = json.loads(response.read().decode("utf-8"))
+    except (URLError, TimeoutError, ValueError) as exc:
+        app.logger.warning("Turnstile verification failed: %s", exc)
+        return False, "Security verification is temporarily unavailable. Please try again."
+
+    if verification.get("success"):
+        return True, None
+
+    app.logger.info("Turnstile rejected contact submission: %s", verification.get("error-codes", []))
+    return False, "Security verification failed. Please refresh the page and try again."
+
+
 def create_app(config_name=None):
     if config_name is None:
         config_name = os.getenv("FLASK_ENV", "development")
@@ -114,6 +186,8 @@ def create_app(config_name=None):
         filename = PAGE_FILES.get(page)
         if not filename:
             abort(404)
+        if page == "contact":
+            return render_template(filename, **_contact_template_context(app))
         return render_template(filename)
 
     @app.route("/assets/<path:filename>")
@@ -177,12 +251,39 @@ def create_app(config_name=None):
         name = (payload.get("name") or "").strip()
         sender = (payload.get("email") or "").strip()
         message = (payload.get("message") or "").strip()
+        website = (payload.get("website") or "").strip()
+        turnstile_token = (payload.get("turnstileToken") or payload.get("cf-turnstile-response") or "").strip()
+
+        try:
+            started_at = int(payload.get("startedAt") or 0)
+        except (TypeError, ValueError):
+            started_at = 0
+
+        if website:
+            app.logger.info("Blocked contact submission via honeypot from %s", request.headers.get("X-Forwarded-For", request.remote_addr))
+            return jsonify({"message": "Message rejected."}), 400
 
         if not name or not sender or not message:
             return jsonify({"message": "name, email, and message are required."}), 400
 
+        now = int(time.time())
+        min_seconds = max(app.config.get("CONTACT_MIN_SUBMIT_SECONDS", 3), 0)
+        max_seconds = max(app.config.get("CONTACT_MAX_SUBMIT_SECONDS", 60 * 60 * 2), min_seconds + 1)
+        elapsed_seconds = now - started_at
+
+        if not started_at or elapsed_seconds < min_seconds or elapsed_seconds > max_seconds:
+            return jsonify({"message": "Please reload the page and try again."}), 400
+
         if not EMAIL_PATTERN.match(sender):
             return jsonify({"message": "Provide a valid email address."}), 400
+
+        if _looks_like_spam_submission(name, message):
+            app.logger.info("Rejected suspicious contact submission from %s", sender)
+            return jsonify({"message": "Message rejected. Please provide a clearer message."}), 400
+
+        turnstile_ok, turnstile_error = _verify_turnstile(app, turnstile_token)
+        if not turnstile_ok:
+            return jsonify({"message": turnstile_error}), 400
 
         try:
             send_contact_emails(name, sender, message)

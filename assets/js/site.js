@@ -72,6 +72,15 @@
   var contactForm = document.getElementById('contact-form');
   var contactStatus = document.getElementById('contact-form-status');
   if (contactForm && contactStatus) {
+    var startedAtInput = document.getElementById('contact-started-at');
+    var turnstileTokenInput = document.getElementById('contact-turnstile-token');
+    var turnstileSiteKey = (contactForm.getAttribute('data-turnstile-site-key') || '').trim();
+    var turnstileContainer = document.querySelector('.cf-turnstile');
+
+    if (startedAtInput) {
+      startedAtInput.value = String(Math.floor(Date.now() / 1000));
+    }
+
     contactForm.addEventListener('submit', function (event) {
       event.preventDefault();
 
@@ -85,11 +94,24 @@
       var payload = {
         name: contactForm.name.value.trim(),
         email: contactForm.email.value.trim(),
-        message: contactForm.message.value.trim()
+        message: contactForm.message.value.trim(),
+        website: contactForm.website ? contactForm.website.value.trim() : '',
+        startedAt: startedAtInput ? startedAtInput.value : '',
+        turnstileToken: ''
       };
+
+      if (turnstileTokenInput && window.turnstile && turnstileContainer) {
+        payload.turnstileToken = window.turnstile.getResponse(turnstileContainer) || '';
+        turnstileTokenInput.value = payload.turnstileToken;
+      }
 
       if (!payload.name || !payload.email || !payload.message) {
         contactStatus.textContent = 'Complete all fields before sending your message.';
+        return;
+      }
+
+      if (turnstileSiteKey && !payload.turnstileToken) {
+        contactStatus.textContent = 'Complete the security check before sending your message.';
         return;
       }
 
@@ -113,6 +135,15 @@
         })
         .then(function () {
           contactForm.reset();
+          if (startedAtInput) {
+            startedAtInput.value = String(Math.floor(Date.now() / 1000));
+          }
+          if (turnstileTokenInput) {
+            turnstileTokenInput.value = '';
+          }
+          if (turnstileSiteKey && window.turnstile && turnstileContainer) {
+            window.turnstile.reset(turnstileContainer);
+          }
           contactStatus.textContent = 'Message sent. You should receive an acknowledgement email shortly.';
         })
         .catch(function (error) {

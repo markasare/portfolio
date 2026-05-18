@@ -34,6 +34,10 @@ class Config:
     ANALYTICS_READ_TOKEN = config("ANALYTICS_READ_TOKEN", default="")
 
     APP_BASE_URL = config("APP_BASE_URL", default="https://markasare.com")
+    CONTACT_MIN_SUBMIT_SECONDS = config("CONTACT_MIN_SUBMIT_SECONDS", default=3, cast=int)
+    CONTACT_MAX_SUBMIT_SECONDS = config("CONTACT_MAX_SUBMIT_SECONDS", default=60 * 60 * 2, cast=int)
+    CONTACT_TURNSTILE_SITE_KEY = config("CONTACT_TURNSTILE_SITE_KEY", default="")
+    CONTACT_TURNSTILE_SECRET_KEY = config("CONTACT_TURNSTILE_SECRET_KEY", default="")
     INDEX_FILE = str(BASE_DIR / "index.html")
 
 
