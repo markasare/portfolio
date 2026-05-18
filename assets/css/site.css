@@ -15,7 +15,7 @@ button { font-family: inherit; cursor: pointer; border: 0; background: transpare
 
 /* ════════════════════ CSS VARIABLES ════════════════════ */
 :root {
-  color-scheme: dark;
+  color-scheme: only dark;
   --nav-height: 68px;
   --nav-offset: 96px;
 
