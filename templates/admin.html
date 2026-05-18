@@ -9,7 +9,7 @@
 <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800;9..144,900&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-<link href="/assets/css/site.css?v=20260516a" rel="stylesheet">
+<link href="/assets/css/site.css?v=20260518a" rel="stylesheet">
 </head>
 <body>
 <nav id="nav">
@@ -28,7 +28,7 @@
     <div class="page-hero-inner reveal visible">
       <span class="eyebrow">Analytics</span>
       <h1 class="page-title serif">Portfolio analytics.</h1>
-      <p class="page-lead">A lightweight public dashboard for unique visitors, sessions, pageviews, and country-level traffic breakdown.</p>
+      <p class="page-lead">A lightweight public dashboard for raw traffic, estimated human traffic, sources, paths, and country-level activity.</p>
       {% if analytics_enabled and summary %}
       <div class="page-actions admin-meta-row">
         <span class="admin-meta-pill"><i class="fa-solid fa-clock"></i> Updated {{ format_timestamp(summary.updated_at) }}</span>
@@ -48,17 +48,100 @@
     {% else %}
     <div class="admin-summary-grid reveal visible">
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Unique visitors</span>
+        <span class="admin-stat-label">Raw visitors</span>
         <strong class="admin-stat-value serif">{{ summary.unique_visitors }}</strong>
       </article>
       <article class="admin-stat-card">
-        <span class="admin-stat-label">Sessions</span>
-        <strong class="admin-stat-value serif">{{ summary.total_sessions }}</strong>
+        <span class="admin-stat-label">Estimated humans</span>
+        <strong class="admin-stat-value serif">{{ summary.estimated_human_visitors }}</strong>
+      </article>
+      <article class="admin-stat-card">
+        <span class="admin-stat-label">Classified bots</span>
+        <strong class="admin-stat-value serif">{{ summary.bot_visitors }}</strong>
       </article>
       <article class="admin-stat-card">
         <span class="admin-stat-label">Pageviews</span>
         <strong class="admin-stat-value serif">{{ summary.total_pageviews }}</strong>
       </article>
+    </div>
+
+    <div class="admin-summary-grid admin-summary-grid-secondary reveal visible">
+      <article class="admin-stat-card admin-stat-card-subtle">
+        <span class="admin-stat-label">Browser visits</span>
+        <strong class="admin-stat-value serif">{{ summary.browser_visits }}</strong>
+      </article>
+      <article class="admin-stat-card admin-stat-card-subtle">
+        <span class="admin-stat-label">Bot visits</span>
+        <strong class="admin-stat-value serif">{{ summary.bot_visits }}</strong>
+      </article>
+      <article class="admin-stat-card admin-stat-card-subtle">
+        <span class="admin-stat-label">Unknown visits</span>
+        <strong class="admin-stat-value serif">{{ summary.unknown_visits }}</strong>
+      </article>
+      <article class="admin-stat-card admin-stat-card-subtle">
+        <span class="admin-stat-label">Tracked visit records</span>
+        <strong class="admin-stat-value serif">{{ summary.raw_tracked_visits }}</strong>
+      </article>
+    </div>
+
+    <div class="admin-insight-grid reveal visible">
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <span class="eyebrow">Sources</span>
+            <h2 class="serif">Where traffic is coming from.</h2>
+          </div>
+          <p>Referrer-based sources are grouped into direct, search, social, and known platforms.</p>
+        </div>
+
+        {% if summary.top_sources %}
+        <div class="admin-ranking-list">
+          {% for row in summary.top_sources %}
+          <div class="admin-ranking-row">
+            <div class="admin-ranking-head">
+              <strong>{{ row.label }}</strong>
+              <span>{{ row.count }} visits</span>
+            </div>
+            <div class="admin-bar-track">
+              <div class="admin-bar-fill" style="width: {{ row.share_percent }}%;"></div>
+            </div>
+            <span class="admin-ranking-meta">{{ row.share_percent }}%</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="admin-panel-note">No source data has been recorded yet.</p>
+        {% endif %}
+      </section>
+
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <span class="eyebrow">Paths</span>
+            <h2 class="serif">What gets hit most.</h2>
+          </div>
+          <p>High deep-page activity across many routes in a short window is usually crawler behavior rather than a person browsing normally.</p>
+        </div>
+
+        {% if summary.top_paths %}
+        <div class="admin-ranking-list">
+          {% for row in summary.top_paths %}
+          <div class="admin-ranking-row">
+            <div class="admin-ranking-head">
+              <strong class="mono">{{ row.label }}</strong>
+              <span>{{ row.count }} hits</span>
+            </div>
+            <div class="admin-bar-track">
+              <div class="admin-bar-fill admin-bar-fill-warm" style="width: {{ row.share_percent }}%;"></div>
+            </div>
+            <span class="admin-ranking-meta">{{ row.share_percent }}%</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="admin-panel-note">No path data has been recorded yet.</p>
+        {% endif %}
+      </section>
     </div>
 
     <div class="admin-panel-grid reveal visible">
@@ -80,7 +163,6 @@
                 <th>Visitors</th>
                 <th>Sessions</th>
                 <th>Pageviews</th>
-                <th>Last update</th>
               </tr>
             </thead>
             <tbody>
@@ -95,7 +177,6 @@
                 <td>{{ row.unique_visitors }}</td>
                 <td>{{ row.total_sessions }}</td>
                 <td>{{ row.total_pageviews }}</td>
-                <td>{{ format_timestamp(row.updated_at) }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -110,9 +191,9 @@
         <div class="admin-panel-head">
           <div>
             <span class="eyebrow">Diagnostics</span>
-            <h2 class="serif">Recent tracked visits.</h2>
+            <h2 class="serif">Last {{ summary.recent_sample_size }} tracked visits.</h2>
           </div>
-          <p>This shows the country values the edge forwarded for recent page requests.</p>
+          <p>This is a sample, not the full history. It is most useful for spotting the latest bot or crawler patterns.</p>
         </div>
 
         {% if summary.recent_visits %}
@@ -123,7 +204,8 @@
                 <th>Time</th>
                 <th>Path</th>
                 <th>Country</th>
-                <th>Edge headers</th>
+                <th>Source</th>
+                <th>Traffic</th>
               </tr>
             </thead>
             <tbody>
@@ -142,20 +224,10 @@
                   </div>
                 </td>
                 <td>
-                  <div class="admin-diagnostics-stack">
-                    {% if visit.cloudfront_country or visit.cloudfront_country_name %}
-                    <span class="admin-header-pill"><span class="mono">CloudFront</span> {{ visit.cloudfront_country or 'none' }}{% if visit.cloudfront_country_name %} · {{ visit.cloudfront_country_name }}{% endif %}</span>
-                    {% endif %}
-                    {% if visit.cf_ip_country %}
-                    <span class="admin-header-pill"><span class="mono">CF-IPCountry</span> {{ visit.cf_ip_country }}</span>
-                    {% endif %}
-                    {% if visit.x_country_code or visit.x_country_name %}
-                    <span class="admin-header-pill"><span class="mono">X-Country</span> {{ visit.x_country_code or 'none' }}{% if visit.x_country_name %} · {{ visit.x_country_name }}{% endif %}</span>
-                    {% endif %}
-                    {% if not visit.cloudfront_country and not visit.cloudfront_country_name and not visit.cf_ip_country and not visit.x_country_code and not visit.x_country_name %}
-                    <span class="admin-header-pill admin-header-pill-muted">No country headers</span>
-                    {% endif %}
-                  </div>
+                  <span class="admin-header-pill"><span class="mono">{{ visit.source }}</span>{% if visit.referer_host %} {{ visit.referer_host }}{% endif %}</span>
+                </td>
+                <td>
+                  <span class="admin-header-pill admin-traffic-pill admin-traffic-pill-{{ visit.traffic_class|lower }}">{{ visit.traffic_class }}</span>
                 </td>
               </tr>
               {% endfor %}

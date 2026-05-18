@@ -1,6 +1,8 @@
+from collections import Counter
 import hashlib
 import time
 import uuid
+from urllib.parse import urlsplit
 
 from flask import current_app, jsonify, request
 
@@ -29,6 +31,43 @@ def _hash_visitor_id(visitor_id):
     if not visitor_id:
         return ""
     return hashlib.sha256(visitor_id.encode("utf-8")).hexdigest()[:12]
+
+
+BOT_SIGNATURES = (
+    "bot",
+    "crawl",
+    "crawler",
+    "spider",
+    "slurp",
+    "wget",
+    "curl",
+    "python-requests",
+    "python-urllib",
+    "go-http-client",
+    "headless",
+    "phantomjs",
+    "selenium",
+    "scrapy",
+    "httpclient",
+    "claudebot",
+    "gptbot",
+    "perplexitybot",
+    "chatgpt-user",
+    "bytespider",
+    "facebookexternalhit",
+    "amazonbot",
+    "applebot",
+)
+
+
+BROWSER_SIGNATURES = (
+    "mozilla/",
+    "chrome/",
+    "safari/",
+    "firefox/",
+    "edg/",
+    "opr/",
+)
 
 
 def _normalize_country_code(value):
@@ -74,6 +113,60 @@ def _country_headers_snapshot():
         "x_country_code": (request.headers.get("X-Country-Code") or "").strip()[:8],
         "x_country_name": (request.headers.get("X-Country-Name") or "").strip()[:80],
     }
+
+
+def _traffic_class_from_user_agent(user_agent):
+    ua = (user_agent or "").strip().lower()
+    if not ua:
+        return "Unknown"
+    if any(signature in ua for signature in BOT_SIGNATURES):
+        return "Bot"
+    if any(signature in ua for signature in BROWSER_SIGNATURES):
+        return "Browser"
+    return "Unknown"
+
+
+def _referer_host(referer):
+    return urlsplit(referer or "").netloc.lower().strip()
+
+
+def _source_from_referer(referer):
+    host = _referer_host(referer)
+    if not host:
+        return "Direct"
+
+    app_host = urlsplit(current_app.config.get("APP_BASE_URL", "")).netloc.lower().strip()
+    if app_host and (host == app_host or host.endswith(f".{app_host}")):
+        return "Internal"
+    if "google." in host:
+        return "Google"
+    if "linkedin.com" in host:
+        return "LinkedIn"
+    if "github.com" in host:
+        return "GitHub"
+    if "bing.com" in host:
+        return "Bing"
+    if "scholar.google" in host:
+        return "Google Scholar"
+    if "chatgpt.com" in host or "openai.com" in host:
+        return "ChatGPT"
+    if "claude.ai" in host or "anthropic.com" in host:
+        return "Claude"
+    if "perplexity.ai" in host:
+        return "Perplexity"
+    if "facebook.com" in host or "m.facebook.com" in host:
+        return "Facebook"
+    if "instagram.com" in host:
+        return "Instagram"
+    if "x.com" in host or "twitter.com" in host:
+        return "X"
+    return host
+
+
+def _share_percent(numerator, denominator):
+    if not denominator:
+        return 0
+    return round((numerator / denominator) * 100, 1)
 
 
 class AnalyticsTracker:
@@ -150,11 +243,14 @@ class AnalyticsTracker:
         session_window = current_app.config.get("ANALYTICS_SESSION_WINDOW_SECONDS", 60 * 30)
         path = request.path
         user_agent = (request.headers.get("User-Agent") or "")[:250]
+        referer = (request.headers.get("Referer") or "")[:400]
         ip_hash = _hash_ip(request.headers.get("X-Forwarded-For", request.remote_addr or ""))
         city = _city_from_headers()
         country_code = _country_code_from_headers()
         country_name = _country_name_from_headers() or country_code
         country_headers = _country_headers_snapshot()
+        traffic_class = _traffic_class_from_user_agent(user_agent)
+        source = _source_from_referer(referer)
         visitor_key = {"pk": f"VISITOR#{visitor_id}", "sk": "PROFILE"}
         visitor_country_key = {"pk": f"VISITOR#{visitor_id}", "sk": f"COUNTRY#{country_code}"}
 
@@ -261,6 +357,9 @@ class AnalyticsTracker:
                 "visitor_hash": _hash_visitor_id(visitor_id),
                 "path": path,
                 "city": city or "",
+                "referer_host": _referer_host(referer),
+                "source": source,
+                "traffic_class": traffic_class,
                 "country_code": country_code,
                 "country_name": country_name,
                 "is_new_visitor": is_new_visitor,
@@ -269,17 +368,26 @@ class AnalyticsTracker:
             }
         )
 
-    def _recent_visits(self, limit=5):
+    def _visit_items(self, limit=None):
         items = []
 
         if Key is not None:
             try:
-                response = self.table.query(
-                    KeyConditionExpression=Key("pk").eq("VISIT"),
-                    ScanIndexForward=False,
-                    Limit=limit,
-                )
-                items = response.get("Items", [])
+                query_kwargs = {
+                    "KeyConditionExpression": Key("pk").eq("VISIT"),
+                    "ScanIndexForward": False,
+                }
+                if limit is not None:
+                    query_kwargs["Limit"] = limit
+
+                response = self.table.query(**query_kwargs)
+                items.extend(response.get("Items", []))
+                while "LastEvaluatedKey" in response and (limit is None or len(items) < limit):
+                    query_kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+                    if limit is not None:
+                        query_kwargs["Limit"] = limit - len(items)
+                    response = self.table.query(**query_kwargs)
+                    items.extend(response.get("Items", []))
             except Exception:
                 items = []
 
@@ -298,28 +406,84 @@ class AnalyticsTracker:
                 items.extend(scan_result.get("Items", []))
 
             items.sort(key=lambda item: item.get("sk") or "", reverse=True)
-            items = items[:limit]
+            if limit is not None:
+                items = items[:limit]
 
-        return [
+        return items
+
+    def _visit_record(self, item):
+        return {
+            "visited_at": _as_int(item.get("visited_at"), 0),
+            "visitor_hash": item.get("visitor_hash") or "",
+            "path": item.get("path") or "",
+            "city": item.get("city") or "",
+            "source": item.get("source") or "Direct",
+            "referer_host": item.get("referer_host") or "",
+            "traffic_class": item.get("traffic_class") or "Unknown",
+            "country_code": item.get("country_code") or "UNKNOWN",
+            "country_name": item.get("country_name") or item.get("country_code") or "UNKNOWN",
+            "is_new_visitor": bool(item.get("is_new_visitor")),
+            "is_new_session": bool(item.get("is_new_session")),
+            "cloudfront_city": item.get("cloudfront_city") or "",
+            "cloudfront_country": item.get("cloudfront_country") or "",
+            "cloudfront_country_name": item.get("cloudfront_country_name") or "",
+            "cf_ip_country": item.get("cf_ip_country") or "",
+            "x_city": item.get("x_city") or "",
+            "x_country_code": item.get("x_country_code") or "",
+            "x_country_name": item.get("x_country_name") or "",
+        }
+
+    def _recent_visits(self, limit=5):
+        items = self._visit_items(limit=limit)
+
+        return [self._visit_record(item) for item in items]
+
+    def _aggregate_visit_summaries(self, visits):
+        source_counts = Counter()
+        path_counts = Counter()
+        traffic_counts = Counter()
+        browser_hashes = set()
+        bot_hashes = set()
+
+        for visit in visits:
+            source_counts[visit["source"] or "Direct"] += 1
+            path_counts[visit["path"] or "/"] += 1
+            traffic_counts[visit["traffic_class"] or "Unknown"] += 1
+
+            visitor_hash = visit.get("visitor_hash") or ""
+            if visit["traffic_class"] == "Browser" and visitor_hash:
+                browser_hashes.add(visitor_hash)
+            if visit["traffic_class"] == "Bot" and visitor_hash:
+                bot_hashes.add(visitor_hash)
+
+        total_visits = len(visits)
+        top_sources = [
             {
-                "visited_at": _as_int(item.get("visited_at"), 0),
-                "visitor_hash": item.get("visitor_hash") or "",
-                "path": item.get("path") or "",
-                "city": item.get("city") or "",
-                "country_code": item.get("country_code") or "UNKNOWN",
-                "country_name": item.get("country_name") or item.get("country_code") or "UNKNOWN",
-                "is_new_visitor": bool(item.get("is_new_visitor")),
-                "is_new_session": bool(item.get("is_new_session")),
-                "cloudfront_city": item.get("cloudfront_city") or "",
-                "cloudfront_country": item.get("cloudfront_country") or "",
-                "cloudfront_country_name": item.get("cloudfront_country_name") or "",
-                "cf_ip_country": item.get("cf_ip_country") or "",
-                "x_city": item.get("x_city") or "",
-                "x_country_code": item.get("x_country_code") or "",
-                "x_country_name": item.get("x_country_name") or "",
+                "label": label,
+                "count": count,
+                "share_percent": _share_percent(count, total_visits),
             }
-            for item in items
+            for label, count in source_counts.most_common(5)
         ]
+        top_paths = [
+            {
+                "label": label,
+                "count": count,
+                "share_percent": _share_percent(count, total_visits),
+            }
+            for label, count in path_counts.most_common(5)
+        ]
+
+        return {
+            "raw_tracked_visits": total_visits,
+            "estimated_human_visitors": len(browser_hashes),
+            "bot_visitors": len(bot_hashes),
+            "browser_visits": traffic_counts.get("Browser", 0),
+            "bot_visits": traffic_counts.get("Bot", 0),
+            "unknown_visits": traffic_counts.get("Unknown", 0),
+            "top_sources": top_sources,
+            "top_paths": top_paths,
+        }
 
     def summary_data(self):
         if not self.is_enabled():
@@ -351,6 +515,8 @@ class AnalyticsTracker:
             for item in country_rows
         ]
         countries.sort(key=lambda item: (-item["unique_visitors"], -item["total_pageviews"], item["country_code"]))
+        visits = self._recent_visits(limit=5000)
+        visit_summary = self._aggregate_visit_summaries(visits)
 
         return {
             "unique_visitors": _as_int(metrics.get("unique_visitors"), 0),
@@ -359,7 +525,9 @@ class AnalyticsTracker:
             "updated_at": _as_int(metrics.get("updated_at"), 0),
             "session_window_seconds": current_app.config.get("ANALYTICS_SESSION_WINDOW_SECONDS", 60 * 30),
             "countries": countries,
-            "recent_visits": self._recent_visits(limit=5),
+            "recent_visits": visits[:5],
+            "recent_sample_size": 5,
+            **visit_summary,
         }
 
     def summary_response(self):
