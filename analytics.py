@@ -169,6 +169,33 @@ def _share_percent(numerator, denominator):
     return round((numerator / denominator) * 100, 1)
 
 
+def _group_small_countries(countries, minimum_visitors=5):
+    primary_countries = []
+    other_countries = []
+
+    for country in countries:
+        if country.get("unique_visitors", 0) < minimum_visitors:
+            other_countries.append(country)
+        else:
+            primary_countries.append(country)
+
+    if not other_countries:
+        return primary_countries
+
+    primary_countries.append(
+        {
+            "country_code": "OTHERS",
+            "country_name": "Others",
+            "unique_visitors": sum(item.get("unique_visitors", 0) for item in other_countries),
+            "total_sessions": sum(item.get("total_sessions", 0) for item in other_countries),
+            "total_pageviews": sum(item.get("total_pageviews", 0) for item in other_countries),
+            "updated_at": max((item.get("updated_at", 0) for item in other_countries), default=0),
+        }
+    )
+
+    return primary_countries
+
+
 class AnalyticsTracker:
     def __init__(self, app=None):
         self.app = None
@@ -514,6 +541,7 @@ class AnalyticsTracker:
             }
             for item in country_rows
         ]
+        countries = _group_small_countries(countries, minimum_visitors=5)
         countries.sort(key=lambda item: (-item["unique_visitors"], -item["total_pageviews"], item["country_code"]))
         visits = self._recent_visits(limit=5000)
         visit_summary = self._aggregate_visit_summaries(visits)
